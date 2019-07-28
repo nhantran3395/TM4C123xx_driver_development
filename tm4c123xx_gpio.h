@@ -19,6 +19,14 @@
 #define SET 1
 #define CLEAR 0
 
+#define IRQ_NUM_PORTA 0
+#define IRQ_NUM_PORTB 1
+#define IRQ_NUM_PORTC 2
+#define IRQ_NUM_PORTD 3
+#define IRQ_NUM_PORTE 4
+#define IRQ_NUM_PORTF 5
+#define IRQ_PRI_NUM_OF_BITS_IMPLEMENTED 4
+
 /*
 *@GPIO_PIN_NO
 *GPIO pin number
@@ -172,9 +180,10 @@ void GPIO_Intrpt_ctrl (uint8_t IRQnumber, uint8_t enOrDis);
 
 /**
 *@brief Handler for GPIO pin 's interrupt
+*@param Pointer to base address of GPIO port x registers
 *@param GPIO pin number
 *@return none
 */
-void GPIO_Intrpt_handler (uint8_t pinNumber);
+void GPIO_Intrpt_handler (GPIOA_Type *GPIOxPtr, uint8_t pinNumber);
 
 #endif 

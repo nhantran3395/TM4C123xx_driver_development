@@ -51,8 +51,9 @@ void GPIO_init (GPIO_Handle_t *GPIOpinxHandlePtr){
 	uint8_t drive = GPIOpinxHandlePtr->GPIOpinConfigPtr->driveSel;
 	uint8_t slewRate = GPIOpinxHandlePtr->GPIOpinConfigPtr->slewRateCtrl;
 	
-	if(pinMode == GPIO_MODE_IN){	
-		/*configuration for GPIO input pin*/
+	if(pinMode == GPIO_MODE_IN || pinMode >= GPIO_MODE_INTRPT_FE){	
+		
+		/*general configuration for GPIO pin input mode and interrupt*/
 		GPIOpinxHandlePtr->GPIOxPtr->AFSEL &= ~(1<<pinNumber);
 		GPIOpinxHandlePtr->GPIOxPtr->DIR &= ~(1<<pinNumber);
 		GPIOpinxHandlePtr->GPIOxPtr->ODR &= ~(1<<pinNumber);
@@ -66,6 +67,26 @@ void GPIO_init (GPIO_Handle_t *GPIOpinxHandlePtr){
 		}else if(puPdr == GPIO_PDR){
 			GPIOpinxHandlePtr->GPIOxPtr->PDR |= 1<<pinNumber;
 		}
+		
+		if (pinMode >= GPIO_MODE_INTRPT_FE){
+		/*configuration for GPIO pin interrupt mode*/
+			
+			//GPIOpinxHandlePtr->GPIOxPtr->ICR |= 1<<pinNumber;
+			GPIOpinxHandlePtr->GPIOxPtr->IS |= 1<<pinNumber;
+			GPIOpinxHandlePtr->GPIOxPtr->IM = 1<<pinNumber;
+			__enable_irq();
+			
+			if(pinMode == GPIO_MODE_INTRPT_FE){
+				GPIOpinxHandlePtr->GPIOxPtr->IBE &= ~(1<<pinNumber);
+				GPIOpinxHandlePtr->GPIOxPtr->IEV &= ~(1<<pinNumber);
+			}else if(pinMode == GPIO_MODE_INTRPT_RE){
+				GPIOpinxHandlePtr->GPIOxPtr->IBE &= ~(1<<pinNumber);
+				GPIOpinxHandlePtr->GPIOxPtr->IEV |= 1<<pinNumber;				
+			}else if (pinMode == GPIO_MODE_INTRPT_RFE){
+				GPIOpinxHandlePtr->GPIOxPtr->IBE |= 1<<pinNumber;			
+			}
+		}
+		
 	}else if(pinMode == GPIO_MODE_OUT){
 		
 		/*configuration for GPIO output pin*/
@@ -111,12 +132,6 @@ void GPIO_init (GPIO_Handle_t *GPIOpinxHandlePtr){
 */
 void GPIO_deinit (GPIOA_Type *GPIOxPtr);
 
-/**
-*@brief Read data from GPIO input pin
-*@param Pointer to base address of GPIO port x registers
-*@param GPIO pin number
-*@return Data from GPIO input pin
-*/
 uint8_t GPIO_read_pin (GPIOA_Type *GPIOxPtr, uint8_t pinNumber)
 {
 	return (uint8_t)(GPIOxPtr->DATA>>pinNumber)&0x01;
@@ -129,13 +144,6 @@ uint8_t GPIO_read_pin (GPIOA_Type *GPIOxPtr, uint8_t pinNumber)
 */
 uint16_t GPIO_read_port (GPIOA_Type *GPIOxPtr);
 
-/**
-*@brief Write data to GPIO output pin
-*@param Pointer to base address of GPIO port x registers
-*@param GPIO pin number
-*@param Set or clear action
-*@return none
-*/
 void GPIO_write_pin (GPIOA_Type *GPIOxPtr, uint8_t pinNumber, uint8_t setOrClear)
 {
 	if(setOrClear == SET){
@@ -153,33 +161,29 @@ void GPIO_write_pin (GPIOA_Type *GPIOxPtr, uint8_t pinNumber, uint8_t setOrClear
 */
 void GPIO_write_port (GPIOA_Type *GPIOxPtr);
 
-/**
-*@brief Toggle GPIO output pin
-*@param Pointer to base address of GPIO port x registers
-*@param GPIO pin number
-*@return none
-*/
-void GPIO_toggle_pin (GPIOA_Type *GPIOxPtr, uint8_t pinNumber);
+void GPIO_toggle_pin (GPIOA_Type *GPIOxPtr, uint8_t pinNumber)
+{
+	GPIOxPtr->DATA ^= 1<<pinNumber;
+}
 
-/**
-*@brief Config interrupt priority
-*@param IRQ number
-*@param Priority
-*@return none
-*/
-void GPIO_Intrpt_priority_config (uint8_t IRQnumber, uint8_t priority);
+void GPIO_Intrpt_priority_config (uint8_t IRQnumber, uint8_t priority)
+{
+	uint8_t registerNo = IRQnumber/4;
+	uint8_t sectionNo = IRQnumber%4;
+	
+	NVIC->IP[registerNo] = priority<<(8*sectionNo + IRQ_PRI_NUM_OF_BITS_IMPLEMENTED);
+}
 
-/**
-*@brief Enable or disable GPIO pin 's interrupt 
-*@param IRQ number
-*@param Enable or disable action
-*@return none
-*/
-void GPIO_Intrpt_ctrl (uint8_t IRQnumber, uint8_t enOrDis);
+void GPIO_Intrpt_ctrl (uint8_t IRQnumber, uint8_t enOrDis)
+{
+	if(enOrDis == ENABLE){
+		NVIC->ISER[0] |= 1<<IRQnumber;
+	}else{
+		NVIC->ICER[0] |= 1<<IRQnumber;
+	}
+}
 
-/**
-*@brief Handler for GPIO pin 's interrupt
-*@param GPIO pin number
-*@return none
-*/
-void GPIO_Intrpt_handler (uint8_t pinNumber);
+void GPIO_Intrpt_handler (GPIOA_Type *GPIOxPtr, uint8_t pinNumber)
+{
+	GPIOxPtr->ICR |= 1<<pinNumber;
+}
